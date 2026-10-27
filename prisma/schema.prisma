@@ -1,0 +1,332 @@
+// =============================================================================
+// PRISMA SCHEMA FOR ENTERPRISE-GRADE TMS & DISPATCH LOGISTICS ECOSYSTEM
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis()]
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  DISPATCHER
+  DRIVER
+  MERCHANT_ADMIN
+  MERCHANT_STAFF
+}
+
+enum DriverTeam {
+  DRIVERS
+  JOCKEY
+  OFFICE
+  CONTRACTOR
+}
+
+enum MerchantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+enum ShiftStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  ABSENT
+}
+
+enum TaskType {
+  DELIVERY
+  PICKUP
+  APPOINTMENT
+  FIELD_WORKFORCE
+}
+
+enum TaskStatus {
+  UNASSIGNED
+  ASSIGNING
+  ASSIGNED
+  PROCESSED
+  LOADED
+  TRANSIT
+  ARRIVED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// -----------------------------------------------------------------------------
+// MULTI-TENANCY & ORGANIZATIONS
+// -----------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  plan      String   @default("ENTERPRISE")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  merchants Merchant[]
+  users     User[]
+  vehicles  Vehicle[]
+  tasks     Task[]
+
+  @@map("organizations")
+}
+
+model Merchant {
+  id           String         @id @default(uuid())
+  orgId        String         @map("org_id")
+  businessName String         @map("business_name")
+  status       MerchantStatus @default(ACTIVE)
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  phone        String?
+  address      String?
+  lat          Float?
+  lng          Float?
+  storeHours   Json           @default("{}") @map("store_hours")
+  
+  // Granular Merchant Permissions Flag Engine
+  permissions  Json           @default("{\"create_task\":true,\"edit_task\":true,\"delete_task\":true,\"upload_task_bulk\":true,\"assign_task_to_driver\":false,\"print_shipping_label\":true,\"view_shipping_fee\":true,\"edit_shipping_fee\":false,\"add_contact\":true,\"edit_contact\":true,\"delete_contact\":true,\"manage_product\":true}")
+  
+  webhookUrl   String?        @map("webhook_url")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users        User[]
+  contacts     Contact[]
+  products     Product[]
+  tasks        Task[]
+
+  @@index([orgId])
+  @@index([status])
+  @@map("merchants")
+}
+
+// -----------------------------------------------------------------------------
+// USERS, DRIVERS & FLEET ROSTER
+// -----------------------------------------------------------------------------
+
+model User {
+  id             String      @id @default(uuid())
+  orgId          String      @map("org_id")
+  merchantId     String?     @map("merchant_id")
+  name           String
+  email          String      @unique
+  phone          String?
+  role           UserRole    @default(DISPATCHER)
+  team           DriverTeam? @default(DRIVERS)
+  maxCapacity    Int         @default(100) @map("max_capacity") // Max parcel weight/count
+  isOnline       Boolean     @default(false) @map("is_online")
+  batteryLevel   Int?        @map("battery_level")
+  currentLat     Float?      @map("current_lat")
+  currentLng     Float?      @map("current_lng")
+  lastSeenAt     DateTime?   @map("last_seen_at")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  merchant       Merchant?    @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  assignedVehicle Vehicle?    @relation("AssignedDriver")
+  rosterShifts   RosterShift[]
+  assignedTasks  Task[]       @relation("DriverTasks")
+
+  @@index([orgId, role])
+  @@index([isOnline, role])
+  @@map("users")
+}
+
+model Vehicle {
+  id               String        @id @default(uuid())
+  orgId            String        @map("org_id")
+  name             String
+  plateNumber      String        @unique @map("plate_number")
+  make             String
+  model            String
+  odometerKm       Float         @default(0) @map("odometer_km")
+  status           VehicleStatus @default(ACTIVE)
+  assignedDriverId String?       @unique @map("assigned_driver_id")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization     Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  assignedDriver   User?         @relation("AssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  vehicleLogs      VehicleLog[]
+  rosterShifts     RosterShift[]
+  tasks            Task[]
+
+  @@index([orgId, status])
+  @@map("vehicles")
+}
+
+model VehicleLog {
+  id          String   @id @default(uuid())
+  vehicleId   String   @map("vehicle_id")
+  type        String   // FUEL, INSPECTION, MAINTENANCE, REMINDER
+  odometerKm  Float    @map("odometer_km")
+  cost        Decimal? @db.Decimal(10, 2)
+  notes       String?
+  checklist   Json     @default("{}")
+  performedAt DateTime @default(now()) @map("performed_at")
+
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, performedAt])
+  @@map("vehicle_logs")
+}
+
+model RosterShift {
+  id         String      @id @default(uuid())
+  driverId   String      @map("driver_id")
+  vehicleId  String?     @map("vehicle_id")
+  shiftDate  DateTime    @db.Date @map("shift_date")
+  startTime  String      @map("start_time") // HH:mm format e.g. "08:00"
+  endTime    String      @map("end_time")   // HH:mm format e.g. "17:00"
+  status     ShiftStatus @default(SCHEDULED)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  driver     User        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle    Vehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@index([driverId, shiftDate, status])
+  @@map("roster_shifts")
+}
+
+// -----------------------------------------------------------------------------
+// CATALOG & CONTACT ADDRESS BOOK
+// -----------------------------------------------------------------------------
+
+model Contact {
+  id               String   @id @default(uuid())
+  merchantId       String   @map("merchant_id")
+  name             String
+  phone            String
+  email            String?
+  fullAddress      String   @map("full_address")
+  buildingUnit     String?  @map("building_unit")
+  deliveryNotes    String?  @map("delivery_notes")
+  referenceCode    String?  @map("reference_code")
+  isUnsubscribed   Boolean  @default(false) @map("is_unsubscribed")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, phone])
+  @@index([merchantId, name])
+  @@map("contacts")
+}
+
+model Product {
+  id            String     @id @default(uuid())
+  merchantId    String     @map("merchant_id")
+  skuCode       String     @map("sku_code")
+  description   String
+  price         Decimal    @db.Decimal(10, 2)
+  weightKg      Float      @default(1.0) @map("weight_kg")
+  packageType   String     @default("PARCEL") @map("package_type")
+  barcodeString String     @map("barcode_string")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  merchant      Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  taskItems     TaskItem[]
+
+  @@unique([merchantId, skuCode])
+  @@index([barcodeString])
+  @@map("products")
+}
+
+// -----------------------------------------------------------------------------
+// TASKS, SHIPMENTS & TELEMATICS
+// -----------------------------------------------------------------------------
+
+model Task {
+  id                 String             @id @default(uuid())
+  publicTrackingId   String             @unique @map("public_tracking_id")
+  orgId              String             @map("org_id")
+  merchantId         String             @map("merchant_id")
+  driverId           String?            @map("driver_id")
+  vehicleId          String?            @map("vehicle_id")
+  type               TaskType           @default(DELIVERY)
+  status             TaskStatus         @default(UNASSIGNED)
+  
+  // Spatial & Logistics Data
+  destinationAddress String             @map("destination_address")
+  destinationLat     Float              @map("destination_lat")
+  destinationLng     Float              @map("destination_lng")
+  recipientName      String             @map("recipient_name")
+  recipientPhone     String             @map("recipient_phone")
+  orderDescription   String?            @map("order_description")
+  completeBeforeTime DateTime?          @map("complete_before_time")
+  etaTimestamp       DateTime?          @map("eta_timestamp")
+  shippingFee        Decimal            @default(0.00) @db.Decimal(10, 2) @map("shipping_fee")
+  codAmountDue       Decimal            @default(0.00) @db.Decimal(10, 2) @map("cod_amount_due")
+  codCollected       Decimal            @default(0.00) @db.Decimal(10, 2) @map("cod_collected")
+  failureReason      String?            @map("failure_reason")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization       Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  merchant           Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  assignedDriver     User?              @relation("DriverTasks", fields: [driverId], references: [id], onDelete: SetNull)
+  assignedVehicle    Vehicle?           @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  items              TaskItem[]
+  proofOfDelivery    ProofOfDelivery?
+
+  @@index([orgId, status, createdAt])
+  @@index([merchantId, status])
+  @@index([driverId, status])
+  @@index([destinationLat, destinationLng])
+  @@map("tasks")
+}
+
+model TaskItem {
+  id             String   @id @default(uuid())
+  taskId         String   @map("task_id")
+  productId      String   @map("product_id")
+  quantity       Int      @default(1)
+  isScanVerified Boolean  @default(false) @map("is_scan_verified")
+
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, productId])
+  @@map("task_items")
+}
+
+model ProofOfDelivery {
+  id                String   @id @default(uuid())
+  taskId            String   @unique @map("task_id")
+  signatureImageUrl String?  @map("signature_image_url")
+  photoUrl          String?  @map("photo_url")
+  confirmedByName   String   @map("confirmed_by_name")
+  notes             String?
+  gpsLat            Float    @map("gps_lat")
+  gpsLng            Float    @map("gps_lng")
+  capturedAt        DateTime @default(now()) @map("captured_at")
+
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("proof_of_delivery")
+}
