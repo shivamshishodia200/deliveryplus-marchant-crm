@@ -18,7 +18,10 @@ import {
   X,
   Trash2,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Upload,
+  BookOpen,
+  Info
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { merchantPortalApi, deliveryTasksApi } from '../../services/api';
@@ -49,9 +52,14 @@ export const MerchantPortalView = () => {
     manage_product: true
   };
 
+  const activePermissionsCount = Object.values(permissions).filter(Boolean).length;
+
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
   const [selectedLabelTask, setSelectedLabelTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [csvText, setCsvText] = useState('');
 
   const [newTask, setNewTask] = useState({
     recipientName: '',
@@ -93,6 +101,45 @@ export const MerchantPortalView = () => {
       });
     }
   });
+
+  // Bulk CSV Upload Handler
+  const handleCsvImport = async (e) => {
+    e.preventDefault();
+    if (!csvText.trim()) return;
+
+    const lines = csvText.trim().split('\n');
+    let imported = 0;
+
+    for (const line of lines) {
+      const parts = line.split(',').map((p) => p.trim());
+      if (parts.length >= 3) {
+        const [recipientName, phone, address, productName, qty] = parts;
+        try {
+          await merchantPortalApi.createTask({
+            recipientName,
+            phone,
+            address,
+            shippingFee: permissions.view_shipping_fee ? 65.0 : undefined,
+            items: [
+              {
+                productName: productName || 'Standard Package',
+                quantity: Number(qty) || 1,
+                weightKg: 10
+              }
+            ]
+          });
+          imported++;
+        } catch (err) {
+          console.error('Import line failed:', err);
+        }
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['merchant-portal-tasks'] });
+    setIsUploadModalOpen(false);
+    setCsvText('');
+    alert(`Successfully imported ${imported} delivery orders!`);
+  };
 
   // Cancel Task Mutation
   const cancelTaskMutation = useMutation({
@@ -141,6 +188,21 @@ export const MerchantPortalView = () => {
 
   const totalFee = orders.reduce((sum, o) => sum + (o.shippingFee || 0), 0);
 
+  const permissionLabels = [
+    { key: 'create_task', label: 'Create task' },
+    { key: 'upload_task', label: 'Upload task (CSV)' },
+    { key: 'view_shipping_fee', label: 'View shipping fee' },
+    { key: 'edit_contact', label: 'Edit contact' },
+    { key: 'edit_task', label: 'Edit task' },
+    { key: 'assign_task_to_driver', label: 'Assign task to driver' },
+    { key: 'edit_shipping_fee', label: 'Edit shipping fee' },
+    { key: 'delete_contact', label: 'Delete contact' },
+    { key: 'delete_task', label: 'Delete task' },
+    { key: 'print_shipping_label', label: 'Print shipping label' },
+    { key: 'add_contact', label: 'Add contact' },
+    { key: 'manage_product', label: 'Manage product' }
+  ];
+
   return (
     <div className="space-y-6 font-sans">
       {/* Top Banner */}
@@ -170,7 +232,29 @@ export const MerchantPortalView = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Active Permissions Pill */}
+          <button
+            onClick={() => setIsPermissionsModalOpen(true)}
+            className="px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 text-brand-teal font-bold text-xs flex items-center gap-1.5 transition-all"
+            title="Click to view granted permissions"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>{activePermissionsCount}/12 Permissions Active</span>
+          </button>
+
+          {/* Upload CSV Button */}
+          {permissions.upload_task && (
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <Upload className="w-4 h-4 text-slate-500" />
+              <span>Upload CSV</span>
+            </button>
+          )}
+
+          {/* Create Request Button */}
           {permissions.create_task ? (
             <button
               onClick={() => setIsCreateTaskOpen(true)}
@@ -247,12 +331,21 @@ export const MerchantPortalView = () => {
         ) : filteredOrders.length === 0 ? (
           <div className="py-16 text-center">
             <Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <h4 className="text-sm font-bold text-slate-700">No Orders Found</h4>
+            <h4 className="text-sm font-bold text-slate-700">No Orders Created Yet</h4>
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               {permissions.create_task
-                ? 'Create your first delivery request using the button above to generate tracking labels and dispatch.'
+                ? 'Click the "+ Create Delivery Request" button above or use "Upload CSV" to register your first shipment.'
                 : 'No delivery tasks currently allocated to this merchant portal.'}
             </p>
+            {permissions.create_task && (
+              <button
+                onClick={() => setIsCreateTaskOpen(true)}
+                className="mt-4 px-4 py-2 bg-brand-teal text-white rounded-xl text-xs font-bold hover:bg-brand-teal-hover inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create First Delivery</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -356,6 +449,119 @@ export const MerchantPortalView = () => {
           </div>
         )}
       </div>
+
+      {/* Permissions Transparency Modal */}
+      {isPermissionsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-brand-teal" />
+                <span>Active Merchant Permissions</span>
+              </h3>
+              <button onClick={() => setIsPermissionsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              The following capabilities have been assigned to <strong>{merchantName}</strong> by the system administrator:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {permissionLabels.map((item) => {
+                const isGranted = !!permissions[item.key];
+                return (
+                  <div
+                    key={item.key}
+                    className={`flex items-center gap-2 p-2 rounded-lg border ${
+                      isGranted ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        isGranted ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`}
+                    />
+                    <span className="font-semibold text-[11px]">{item.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPermissionsModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-900 text-white font-bold text-xs hover:bg-black"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk CSV Upload Modal */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Upload className="w-4 h-4 text-brand-teal" />
+                <span>Upload Tasks via CSV</span>
+              </h3>
+              <button onClick={() => setIsUploadModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-blue-600" />
+                <span>CSV Format Instructions:</span>
+              </div>
+              <p className="text-[11px] font-mono text-slate-500">
+                RecipientName, Phone, Address, ProductName, Quantity
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Example: John Doe, 0412345678, 123 Collins St Melbourne VIC, Dining Chair, 2
+              </p>
+            </div>
+
+            <form onSubmit={handleCsvImport} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Paste CSV Lines *</label>
+                <textarea
+                  rows={6}
+                  required
+                  placeholder="Paste lines separated by commas..."
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  className="w-full p-3 font-mono border border-slate-300 rounded-lg text-xs outline-none focus:border-brand-teal"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-brand-teal text-white font-bold hover:bg-brand-teal-hover flex items-center gap-1.5"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Import Orders</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Single Task Creator Modal */}
       {isCreateTaskOpen && (

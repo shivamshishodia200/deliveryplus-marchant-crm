@@ -47,6 +47,12 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const merchantNavItems = [
     { label: 'Merchant Orders & Tasks', to: '/merchant-portal', icon: Package, badge: 'Portal' },
+    ...(user?.permissions?.add_contact || user?.permissions?.edit_contact
+      ? [{ label: 'Address Book & Contacts', to: '/contacts', icon: BookOpen }]
+      : []),
+    ...(user?.permissions?.manage_product
+      ? [{ label: 'Product Catalog', to: '/products', icon: Package }]
+      : []),
     { label: 'Account Settings', to: '/settings', icon: Settings }
   ];
 
