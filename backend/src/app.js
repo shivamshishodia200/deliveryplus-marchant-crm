@@ -25,6 +25,10 @@ import reportsRoutes from './modules/reports/reports.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
 import settingsRoutes from './modules/settings/settings.routes.js';
 import merchantsRoutes from './modules/merchants/merchants.routes.js';
+import deliveryTasksRoutes from './modules/delivery-tasks/deliveryTasks.routes.js';
+import dispatchRoutes from './modules/dispatch/dispatch.routes.js';
+import teamsRoutes from './modules/teams/teams.routes.js';
+import vehiclesRoutes from './modules/vehicles/vehicles.routes.js';
 
 const app = express();
 
@@ -82,6 +86,10 @@ app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/merchants', merchantsRoutes);
+app.use('/api/v1/delivery-tasks', deliveryTasksRoutes);
+app.use('/api/v1/dispatch', dispatchRoutes);
+app.use('/api/v1/teams', teamsRoutes);
+app.use('/api/v1/vehicles', vehiclesRoutes);
 
 // 404 Handler
 app.use('*', (req, res) => {

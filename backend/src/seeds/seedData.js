@@ -13,6 +13,10 @@ import { Notification } from '../models/Notification.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Setting } from '../models/Setting.js';
 import { Merchant } from '../models/Merchant.js';
+import { DeliveryTask } from '../models/DeliveryTask.js';
+import { Team } from '../models/Team.js';
+import { Vehicle } from '../models/Vehicle.js';
+import { DriverProfile } from '../models/DriverProfile.js';
 import bcrypt from 'bcryptjs';
 import { logger } from '../config/logger.js';
 
@@ -34,7 +38,11 @@ const seedDatabase = async () => {
       Notification.deleteMany({}),
       AuditLog.deleteMany({}),
       Setting.deleteMany({}),
-      Merchant.deleteMany({})
+      Merchant.deleteMany({}),
+      DeliveryTask.deleteMany({}),
+      Team.deleteMany({}),
+      Vehicle.deleteMany({}),
+      DriverProfile.deleteMany({})
     ]);
 
     logger.info('Inserting Organization Settings...');
@@ -456,6 +464,20 @@ const seedDatabase = async () => {
     const merchantPassHash = await bcrypt.hash('EnterpriseCRM2026!', 10);
     await Merchant.create([
       {
+        merchantName: 'Barns Furniture',
+        merchantCode: 'MER-BARN-000',
+        status: 'Active',
+        loginEmail: 'orders@barnsfurniture.com.au',
+        passwordHash: merchantPassHash,
+        linkToTeam: 'Merchants',
+        storeDetails: {
+          contactName: 'Michelle',
+          phone: '0412889901',
+          contactEmail: 'orders@barnsfurniture.com.au',
+          address: 'Level 31, 140 William St, Melbourne, VIC 3000'
+        }
+      },
+      {
         merchantName: 'Bazaa Furniture',
         merchantCode: 'MER-BAZA-001',
         status: 'Active',
@@ -597,7 +619,404 @@ const seedDatabase = async () => {
       }
     ]);
 
-    logger.info('✅ Database successfully populated with realistic Enterprise CRM records!');
+    logger.info('Seeding Dispatcher & Driver team accounts...');
+    const dispatcher = await User.create({
+      name: 'David Dispatcher',
+      email: 'dispatcher@deliveryplus.com',
+      password: 'DeliveryPlus2026!',
+      role: 'dispatcher',
+      department: 'Logistics Operations',
+      phone: '0412345678'
+    });
+
+    const driver1 = await User.create({
+      name: 'Husan',
+      email: 'husan.driver@deliveryplus.com',
+      password: 'DeliveryPlus2026!',
+      role: 'driver',
+      department: 'Fleet Drivers',
+      phone: '0420112233'
+    });
+
+    const driver2 = await User.create({
+      name: 'Ankit Mor',
+      email: 'ankit.driver@deliveryplus.com',
+      password: 'DeliveryPlus2026!',
+      role: 'driver',
+      department: 'Fleet Drivers',
+      phone: '0420998877'
+    });
+
+    const driver3 = await User.create({
+      name: 'Gaurang Goswin',
+      email: 'gaurang.driver@deliveryplus.com',
+      password: 'DeliveryPlus2026!',
+      role: 'driver',
+      department: 'Fleet Drivers',
+      phone: '0420556677'
+    });
+
+    logger.info('Seeding Fleet Vehicles...');
+    const vehicle1 = await Vehicle.create({
+      vehicleName: 'Mercedes Sprinter (VIC-DEL-01)',
+      rego: 'VIC-DEL-01',
+      vehicleType: 'Van',
+      capacityKg: 1800,
+      capacityVolumeM3: 14,
+      assignedDriver: driver1._id,
+      driverName: driver1.name,
+      status: 'Active',
+      odometerKm: 42500,
+      nextServiceDueKm: 50000,
+      currentLocation: { lat: -37.818, lng: 145.015, updatedAt: new Date() }
+    });
+
+    const vehicle2 = await Vehicle.create({
+      vehicleName: 'Toyota HiAce (VIC-DEL-02)',
+      rego: 'VIC-DEL-02',
+      vehicleType: 'Van',
+      capacityKg: 1200,
+      capacityVolumeM3: 10,
+      assignedDriver: driver2._id,
+      driverName: driver2.name,
+      status: 'Active',
+      odometerKm: 28400,
+      nextServiceDueKm: 35000,
+      currentLocation: { lat: -37.824, lng: 144.992, updatedAt: new Date() }
+    });
+
+    const vehicle3 = await Vehicle.create({
+      vehicleName: 'Ford Transit (VIC-DEL-03)',
+      rego: 'VIC-DEL-03',
+      vehicleType: 'Van',
+      capacityKg: 1500,
+      capacityVolumeM3: 12,
+      assignedDriver: driver3._id,
+      driverName: driver3.name,
+      status: 'Active',
+      odometerKm: 61200,
+      nextServiceDueKm: 65000,
+      currentLocation: { lat: -37.792, lng: 144.951, updatedAt: new Date() }
+    });
+
+    logger.info('Seeding Driver Profiles with Telemetry...');
+    await Promise.all([
+      DriverProfile.create({
+        user: driver1._id,
+        driverId: 'DRV-000010',
+        phone: driver1.phone,
+        assignedVehicle: vehicle1._id,
+        vehicleName: vehicle1.vehicleName,
+        team: 'Drivers',
+        capacity: 100,
+        activeTasksCount: 2,
+        isAvailable: true,
+        telemetry: {
+          isOnline: true,
+          lastSeen: new Date(),
+          lat: -37.818,
+          lng: 145.015,
+          speed: 42,
+          heading: 45,
+          battery: 88
+        }
+      }),
+      DriverProfile.create({
+        user: driver2._id,
+        driverId: 'DRV-000011',
+        phone: driver2.phone,
+        assignedVehicle: vehicle2._id,
+        vehicleName: vehicle2.vehicleName,
+        team: 'Drivers',
+        capacity: 100,
+        activeTasksCount: 1,
+        isAvailable: true,
+        telemetry: {
+          isOnline: true,
+          lastSeen: new Date(),
+          lat: -37.824,
+          lng: 144.992,
+          speed: 0,
+          heading: 180,
+          battery: 94
+        }
+      }),
+      DriverProfile.create({
+        user: driver3._id,
+        driverId: 'DRV-000012',
+        phone: driver3.phone,
+        assignedVehicle: vehicle3._id,
+        vehicleName: vehicle3.vehicleName,
+        team: 'Drivers',
+        capacity: 100,
+        activeTasksCount: 0,
+        isAvailable: true,
+        telemetry: {
+          isOnline: true,
+          lastSeen: new Date(),
+          lat: -37.792,
+          lng: 144.951,
+          speed: 55,
+          heading: 315,
+          battery: 62
+        }
+      })
+    ]);
+
+    logger.info('Seeding Operational Teams...');
+    await Promise.all([
+      Team.create({ name: 'All Teams', code: 'ALL', description: 'Universal team access' }),
+      Team.create({ name: 'Merchants', code: 'MER', description: 'Retail merchant partnership logistics' }),
+      Team.create({ name: 'Drivers', code: 'DRV', description: 'Core road fleet drivers' }),
+      Team.create({ name: 'Office', code: 'OFF', description: 'HQ Dispatch & Operations' })
+    ]);
+
+    logger.info('Seeding Operational Delivery Tasks (matching actual screenshot roster)...');
+    const defaultMerchant = await Merchant.findOne({ merchantName: 'Delivery Plus' });
+    const barns = (await Merchant.findOne({ merchantName: 'Barns Furniture' })) || defaultMerchant;
+    const berkowitz = (await Merchant.findOne({ merchantName: 'Berkowitz Furniture' })) || defaultMerchant;
+    const fenton = (await Merchant.findOne({ merchantName: 'Fenton&Fenton' })) || defaultMerchant;
+    const satara = (await Merchant.findOne({ merchantName: 'Satara' })) || defaultMerchant;
+    const deliveryPlus = defaultMerchant;
+    const sofasDirect = (await Merchant.findOne({ merchantName: 'Sofas Direct' })) || defaultMerchant;
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const todayEvening = new Date();
+    todayEvening.setHours(18, 0, 0, 0);
+
+    await Promise.all([
+      DeliveryTask.create({
+        taskNumber: 'TSK-1001',
+        externalReferenceId: 'BF-ORD-8812',
+        merchant: barns._id,
+        merchantName: 'Barns Furniture',
+        taskType: 'Delivery',
+        priority: 'Medium',
+        service: 'VIC | PREMIUM DELIVERY',
+        taskNotes: 'Packages booked: 2. Packing slip: http://dp.slip/8812',
+        destination: {
+          recipientName: 'Michelle Eckhart',
+          phone: '0412 889 901',
+          email: 'michelle@example.com',
+          address: 'Level 31, 140 William St, Melbourne, VIC, 3000, Australia',
+          buildingUnit: 'Level 31',
+          instructions: 'Call on arrival for security lift access.',
+          lat: -37.815,
+          lng: 144.958
+        },
+        completeBefore: tomorrow,
+        assignedTeam: 'Merchants',
+        shippingFee: 85.0,
+        serviceDurationMinutes: 30,
+        configurableFields: { paperwork: 'Attached', scheduledFor: 'Morning', remarks: 'White glove placement' },
+        items: [{ productName: 'Modern Oak Dining Chair Set', quantity: 2, weightKg: 18, unitPrice: 85.0 }],
+        status: 'Unassigned',
+        history: [{ status: 'Unassigned', action: 'Created', updatedByName: 'Barns Furniture', timestamp: new Date() }]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1002',
+        externalReferenceId: 'BKW-5501',
+        merchant: barns._id,
+        merchantName: 'Berkowitz Furniture',
+        taskType: 'Delivery',
+        priority: 'High',
+        service: 'VIC | EXPRESS DELIVERY',
+        taskNotes: 'Packages booked: 1. Packing slip: http://dp.slip/5501',
+        destination: {
+          recipientName: 'Maita McAdam',
+          phone: '0433 112 244',
+          email: 'maita@example.com',
+          address: '11/31 York Street, Richmond, VIC, 3121, Australia',
+          buildingUnit: 'Unit 11',
+          instructions: 'Leave at front porch if no answer.',
+          lat: -37.822,
+          lng: 144.998
+        },
+        completeBefore: todayEvening,
+        assignedTeam: 'Drivers',
+        assignedDriver: driver2._id,
+        driverName: driver2.name,
+        shippingFee: 65.0,
+        serviceDurationMinutes: 20,
+        items: [{ productName: 'Fabric Sectional Armchair', quantity: 1, weightKg: 35, unitPrice: 65.0 }],
+        status: 'Assigned',
+        history: [
+          { status: 'Unassigned', action: 'Created', updatedByName: 'System', timestamp: new Date() },
+          { status: 'Assigned', action: 'Driver Assigned', updatedByName: 'Dispatcher', timestamp: new Date() }
+        ]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1003',
+        externalReferenceId: 'CMH-7704',
+        merchant: deliveryPlus._id,
+        merchantName: 'Craft media hub',
+        taskType: 'Delivery',
+        priority: 'Medium',
+        service: 'VIC | EXPRESS DELIVERY',
+        taskNotes: 'Packages booked: 3. Packing slip: http://dp.slip/7704',
+        destination: {
+          recipientName: 'BRONWEN PAYNE',
+          phone: '0488 445 566',
+          email: 'bronwen@example.com',
+          address: '17a Tharra Street, Bentleigh East, VIC, 3165, Australia',
+          buildingUnit: '17A',
+          lat: -37.925,
+          lng: 145.068
+        },
+        completeBefore: tomorrow,
+        assignedTeam: 'Merchants',
+        shippingFee: 55.0,
+        items: [{ productName: 'Large Format Canvas Prints', quantity: 3, weightKg: 12, unitPrice: 55.0 }],
+        status: 'Unassigned',
+        history: [{ status: 'Unassigned', action: 'Created', updatedByName: 'Craft media hub', timestamp: new Date() }]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1004',
+        externalReferenceId: 'FNT-9902',
+        merchant: fenton._id,
+        merchantName: 'Fenton&Fenton',
+        taskType: 'Delivery',
+        priority: 'Urgent',
+        service: 'VIC | PREMIUM DELIVERY',
+        taskNotes: 'Premium Table Delivery with White Glove Unpacking',
+        destination: {
+          recipientName: 'ALEX OSHANNESSY',
+          phone: '0477 334 455',
+          email: 'alex@example.com',
+          address: '93 Pakington Street, Kew VIC 3101',
+          lat: -37.808,
+          lng: 145.027
+        },
+        completeBefore: todayEvening,
+        assignedTeam: 'Drivers',
+        assignedDriver: driver1._id,
+        driverName: driver1.name,
+        shippingFee: 120.0,
+        serviceDurationMinutes: 45,
+        items: [{ productName: 'Custom Terrazzo Dining Table', quantity: 1, weightKg: 85, unitPrice: 120.0 }],
+        status: 'Transit',
+        history: [
+          { status: 'Unassigned', action: 'Created', updatedByName: 'Fenton&Fenton', timestamp: new Date() },
+          { status: 'Assigned', action: 'Assigned to Husan', updatedByName: 'Dispatcher', timestamp: new Date() },
+          { status: 'Transit', action: 'Departed Warehouse', updatedByName: 'Husan', timestamp: new Date() }
+        ]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1005',
+        externalReferenceId: 'SAT-3319',
+        merchant: satara._id,
+        merchantName: 'Satara',
+        taskType: 'Delivery',
+        priority: 'Low',
+        service: 'Standard Delivery',
+        taskNotes: 'Please deliver either 10th or 11th November morning',
+        destination: {
+          recipientName: 'Tina Walker',
+          phone: '0411 990 011',
+          email: 'tina@example.com',
+          address: '25a Waltham Street, Richmond VIC 3121',
+          buildingUnit: '25A',
+          lat: -37.829,
+          lng: 144.996
+        },
+        completeBefore: tomorrow,
+        assignedTeam: 'Merchants',
+        shippingFee: 45.0,
+        items: [{ productName: 'Rattan Outdoor Barstool', quantity: 2, weightKg: 14, unitPrice: 45.0 }],
+        status: 'Unassigned',
+        history: [{ status: 'Unassigned', action: 'Created', updatedByName: 'Satara', timestamp: new Date() }]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1006',
+        externalReferenceId: 'FNT-9908',
+        merchant: fenton._id,
+        merchantName: 'Fenton&Fenton',
+        taskType: 'Delivery',
+        priority: 'Medium',
+        service: 'ACT | INTERSTATE DELIVERY',
+        taskNotes: 'ACT | PREMIUM DELIVERY Packages booked: 1 Packing slip: http://dp.slip/9908',
+        destination: {
+          recipientName: 'Katie Quodling',
+          phone: '0422 667 788',
+          email: 'katie@example.com',
+          address: '33 Macalister Crescent, Curtin, ACT, 2605, Australia',
+          lat: -35.325,
+          lng: 149.078
+        },
+        completeBefore: tomorrow,
+        assignedTeam: 'Office',
+        shippingFee: 145.0,
+        items: [{ productName: 'Ceramic Table Lamp & Shade', quantity: 1, weightKg: 8, unitPrice: 145.0 }],
+        status: 'Unassigned',
+        history: [{ status: 'Unassigned', action: 'Created', updatedByName: 'Fenton&Fenton', timestamp: new Date() }]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1007',
+        externalReferenceId: 'SFD-4412',
+        merchant: sofasDirect._id,
+        merchantName: 'Sofas Direct',
+        taskType: 'Delivery',
+        priority: 'Medium',
+        service: 'Standard Delivery',
+        taskNotes: 'Delivered and signed at reception',
+        destination: {
+          recipientName: 'Milan Korbel',
+          phone: '0433 998 877',
+          email: 'milan@example.com',
+          address: '51 Tramway Parade, Beaumaris VIC 3193',
+          lat: -37.989,
+          lng: 145.042
+        },
+        completeBefore: todayEvening,
+        assignedTeam: 'Drivers',
+        assignedDriver: driver1._id,
+        driverName: driver1.name,
+        completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        completionProof: {
+          signatureUrl: 'https://cdn.deliveryplus.tech/sig/1007.png',
+          photoUrl: 'https://cdn.deliveryplus.tech/pod/1007.jpg',
+          notes: 'Customer accepted delivery and signed.'
+        },
+        shippingFee: 95.0,
+        items: [{ productName: 'Velvet Lounge Ottoman', quantity: 1, weightKg: 20, unitPrice: 95.0 }],
+        status: 'Completed',
+        history: [
+          { status: 'Unassigned', action: 'Created', updatedByName: 'Sofas Direct', timestamp: new Date() },
+          { status: 'Assigned', action: 'Assigned', updatedByName: 'Dispatcher', timestamp: new Date() },
+          { status: 'Completed', action: 'Delivered', updatedByName: 'Husan', timestamp: new Date() }
+        ]
+      }),
+      DeliveryTask.create({
+        taskNumber: 'TSK-1008',
+        externalReferenceId: 'DP-9921',
+        merchant: deliveryPlus._id,
+        merchantName: 'Delivery Plus',
+        taskType: 'Delivery',
+        priority: 'High',
+        service: 'Standard Delivery',
+        taskNotes: 'Customer not home, gates locked, telephone unanswered',
+        destination: {
+          recipientName: 'Sarah Connor',
+          phone: '0499 112 233',
+          email: 'sarah.c@example.com',
+          address: '42 Wallaby Way, Sydney NSW 2000',
+          lat: -33.868,
+          lng: 151.209
+        },
+        completeBefore: todayEvening,
+        assignedTeam: 'Drivers',
+        failureReason: 'Access Denied: Customer not home and perimeter gate locked with no keypad code.',
+        shippingFee: 65.0,
+        items: [{ productName: 'Express Document Freight Pouch', quantity: 1, weightKg: 2, unitPrice: 65.0 }],
+        status: 'Failed',
+        history: [
+          { status: 'Unassigned', action: 'Created', updatedByName: 'Delivery Plus', timestamp: new Date() },
+          { status: 'Failed', action: 'Marked Failed', updatedByName: 'Dispatcher', note: 'Gate locked' }
+        ]
+      })
+    ]);
+
+    logger.info('✅ Database successfully populated with realistic Enterprise CRM & Dispatch records!');
     process.exit(0);
   } catch (error) {
     logger.error('Database seeding failed:', error);

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.js';
 import { User } from '../models/User.js';
+import { Merchant } from '../models/Merchant.js';
 
 export const protect = async (req, res, next) => {
   try {
@@ -23,6 +24,25 @@ export const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, ENV.JWT_SECRET);
+
+    // Support Merchant Portal Tenant Login
+    if (decoded.role === 'MERCHANT' || decoded.merchantId) {
+      const merchant = await Merchant.findById(decoded.merchantId);
+      if (!merchant || merchant.status !== 'Active') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'MERCHANT_INACTIVE',
+            message: 'Merchant account is suspended or invalid.'
+          }
+        });
+      }
+      req.merchant = merchant;
+      req.user = { _id: merchant._id, name: merchant.merchantName, role: 'merchant' };
+      return next();
+    }
+
+    // Support Staff User Login
     const user = await User.findById(decoded.id).select('-password');
 
     if (!user || !user.isActive) {
@@ -46,4 +66,35 @@ export const protect = async (req, res, next) => {
       }
     });
   }
+};
+
+/**
+ * Middleware to enforce any of the 12 merchant permissions
+ */
+export const requireMerchantPermission = (permissionKey) => {
+  return (req, res, next) => {
+    // If request is from internal staff (admin, manager, dispatcher), allow
+    if (req.user && ['superadmin', 'admin', 'manager', 'dispatcher'].includes(req.user.role)) {
+      return next();
+    }
+
+    if (!req.merchant) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Merchant authorization required.' }
+      });
+    }
+
+    if (req.merchant.permissions && req.merchant.permissions[permissionKey] === false) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'PERMISSION_DENIED',
+          message: `Merchant does not have permission to perform '${permissionKey}'.`
+        }
+      });
+    }
+
+    next();
+  };
 };

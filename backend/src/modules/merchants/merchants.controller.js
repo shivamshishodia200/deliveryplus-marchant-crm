@@ -1,4 +1,6 @@
 import { Merchant } from '../../models/Merchant.js';
+import { DeliveryTask } from '../../models/DeliveryTask.js';
+import { User } from '../../models/User.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { ENV } from '../../config/env.js';
@@ -288,6 +290,234 @@ export const merchantsController = {
           email: merchant.loginEmail,
           permissions: merchant.permissions,
           storeDetails: merchant.storeDetails
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Merchant Portal: List tasks strictly scoped to this merchant tenant
+   * Redacts shippingFee if view_shipping_fee permission is false
+   */
+  async portalGetTasks(req, res, next) {
+    try {
+      const merchantId = req.merchant?._id || req.query.merchantId;
+      if (!merchantId) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Merchant identification required.' }
+        });
+      }
+
+      const merchant = await Merchant.findById(merchantId);
+      if (!merchant) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Merchant not found.' }
+        });
+      }
+
+      const tasks = await DeliveryTask.find({ merchant: merchant._id, isArchived: false })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Redact shipping fee if view_shipping_fee is disabled
+      const canViewFee = merchant.permissions?.view_shipping_fee !== false;
+      const sanitizedTasks = tasks.map((t) => ({
+        ...t,
+        shippingFee: canViewFee ? t.shippingFee : null
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: sanitizedTasks,
+        merchantName: merchant.merchantName,
+        permissions: merchant.permissions
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Merchant Portal: Create new delivery task
+   * Enforces create_task permission; locks fee if edit_shipping_fee is false
+   */
+  async portalCreateTask(req, res, next) {
+    try {
+      const merchantId = req.merchant?._id || req.body.merchantId;
+      const merchant = await Merchant.findById(merchantId);
+      if (!merchant) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Merchant not found.' }
+        });
+      }
+
+      if (merchant.permissions?.create_task === false) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'PERMISSION_DENIED', message: 'Merchant lacks permission to create tasks.' }
+        });
+      }
+
+      const {
+        recipientName,
+        phone,
+        email = '',
+        address,
+        buildingUnit = '',
+        instructions = '',
+        description = '',
+        service = 'Standard Delivery',
+        items = [],
+        completeBefore,
+        shippingFee = 0
+      } = req.body;
+
+      if (!recipientName || !address) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Recipient name and address are required.' }
+        });
+      }
+
+      // Enforce fee editing permission
+      const canEditFee = merchant.permissions?.edit_shipping_fee === true;
+      const finalFee = canEditFee ? Number(shippingFee) : 35.0; // Standard base rate if cannot edit
+
+      const count = await DeliveryTask.countDocuments();
+      const taskNumber = `ORD-${1000 + count + 1}`;
+      const deadline = completeBefore ? new Date(completeBefore) : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      const task = await DeliveryTask.create({
+        taskNumber,
+        externalReferenceId: `REF-${Date.now().toString().slice(-6)}`,
+        merchant: merchant._id,
+        merchantName: merchant.merchantName,
+        taskType: 'Delivery',
+        service,
+        taskNotes: description,
+        pickupLocation: {
+          contactName: merchant.storeDetails?.contactName || '',
+          phone: merchant.storeDetails?.phone || '',
+          address: merchant.storeDetails?.address || ''
+        },
+        destination: {
+          recipientName,
+          phone: phone || merchant.storeDetails?.phone || '0400000000',
+          email,
+          address,
+          buildingUnit,
+          instructions
+        },
+        completeBefore: deadline,
+        assignedTeam: merchant.linkToTeam || 'Merchants',
+        shippingFee: finalFee,
+        items: items.length > 0 ? items : [{ productName: description || 'Delivery Package', quantity: 1, unitPrice: finalFee }],
+        status: 'Unassigned',
+        history: [
+          {
+            status: 'Unassigned',
+            action: 'Created via Merchant Portal',
+            updatedByName: merchant.merchantName,
+            timestamp: new Date()
+          }
+        ]
+      });
+
+      res.status(201).json({ success: true, data: task });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Merchant Portal: Cancel task
+   * Enforces delete_task permission
+   */
+  async portalCancelTask(req, res, next) {
+    try {
+      const merchantId = req.merchant?._id || req.body.merchantId;
+      const merchant = await Merchant.findById(merchantId);
+
+      if (merchant && merchant.permissions?.delete_task === false) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'PERMISSION_DENIED', message: 'Merchant lacks permission to delete/cancel tasks.' }
+        });
+      }
+
+      const task = await DeliveryTask.findOne({
+        _id: req.params.id,
+        merchant: merchantId,
+        status: { $in: ['Unassigned', 'Assigning', 'Assigned'] }
+      });
+
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Task not found or cannot be cancelled in current status.' }
+        });
+      }
+
+      task.status = 'Cancelled';
+      task.version += 1;
+      task.history.push({
+        status: 'Cancelled',
+        action: 'Cancelled by Merchant',
+        updatedByName: merchant?.merchantName || 'Merchant',
+        timestamp: new Date()
+      });
+
+      await task.save();
+
+      res.status(200).json({ success: true, message: 'Order cancelled successfully', data: task });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Merchant Portal: Generate printable shipping label
+   * Enforces print_shipping_label permission
+   */
+  async portalPrintLabel(req, res, next) {
+    try {
+      const merchantId = req.merchant?._id || req.query.merchantId;
+      const merchant = await Merchant.findById(merchantId);
+
+      if (merchant && merchant.permissions?.print_shipping_label === false) {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'PERMISSION_DENIED', message: 'Merchant lacks permission to print shipping labels.' }
+        });
+      }
+
+      const task = await DeliveryTask.findById(req.params.id).lean();
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Task not found.' }
+        });
+      }
+
+      const barcodeValue = `DP-${task.taskNumber}`;
+      res.status(200).json({
+        success: true,
+        data: {
+          taskNumber: task.taskNumber,
+          barcodeValue,
+          merchantName: task.merchantName,
+          recipient: task.destination?.recipientName,
+          address: task.destination?.address,
+          phone: task.destination?.phone,
+          service: task.service,
+          scheduledDate: task.completeBefore,
+          packageCount: task.items?.length || 1,
+          qrPayload: `https://track.deliveryplus.tech/track/${task.taskNumber}`
         }
       });
     } catch (error) {

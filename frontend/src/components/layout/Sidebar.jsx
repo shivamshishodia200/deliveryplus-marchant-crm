@@ -83,7 +83,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                 className={({ isActive }) =>
                   `flex items-center justify-between px-3.5 py-2 rounded-xl font-medium text-xs transition-all duration-200 ${
                     isActive
-                      ? 'bg-emerald-600 text-white shadow-md font-bold'
+                      ? 'bg-brand-teal text-white shadow-md font-bold'
                       : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
                   }`
                 }
@@ -93,7 +93,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/30 text-emerald-200">
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-brand-teal/30 text-teal-200">
                     {item.badge}
                   </span>
                 )}

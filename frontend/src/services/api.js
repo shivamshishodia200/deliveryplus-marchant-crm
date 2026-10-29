@@ -178,3 +178,56 @@ export const settingsApi = {
   get: () => apiClient('/settings'),
   update: (data) => apiClient('/settings', { method: 'PUT', body: JSON.stringify(data) })
 };
+
+// Delivery Tasks Services (Dispatcher Center)
+export const deliveryTasksApi = {
+  getAll: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient(`/delivery-tasks?${query}`);
+  },
+  getById: (id) => apiClient(`/delivery-tasks/${id}`),
+  create: (data) => apiClient('/delivery-tasks', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => apiClient(`/delivery-tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateStatus: (id, payload) => apiClient(`/delivery-tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  assignDriver: (id, payload) => apiClient(`/delivery-tasks/${id}/assign`, { method: 'POST', body: JSON.stringify(payload) }),
+  bulkActions: (payload) => apiClient('/delivery-tasks/bulk', { method: 'POST', body: JSON.stringify(payload) }),
+  getDashboardMetrics: () => apiClient('/delivery-tasks/dashboard'),
+  exportCsv: () => `${BASE_URL}/delivery-tasks/export/csv`
+};
+
+// Dispatch & Telematics Services
+export const dispatchApi = {
+  getMapData: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiClient(`/dispatch/map-data?${query}`);
+  },
+  recordTelemetry: (payload) => apiClient('/dispatch/telemetry', { method: 'POST', body: JSON.stringify(payload) }),
+  createRoute: (payload) => apiClient('/dispatch/route', { method: 'POST', body: JSON.stringify(payload) })
+};
+
+// Teams & Fleet Services
+export const teamsApi = {
+  getAll: () => apiClient('/teams'),
+  create: (data) => apiClient('/teams', { method: 'POST', body: JSON.stringify(data) })
+};
+
+export const vehiclesApi = {
+  getAll: () => apiClient('/vehicles'),
+  create: (data) => apiClient('/vehicles', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => apiClient(`/vehicles/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+};
+
+// Merchant Portal Tenant Services
+export const merchantPortalApi = {
+  getTasks: (merchantId) => {
+    const query = merchantId ? `?merchantId=${merchantId}` : '';
+    return apiClient(`/merchants/portal/tasks${query}`);
+  },
+  createTask: (data) => apiClient('/merchants/portal/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  cancelTask: (id, merchantId) => apiClient(`/merchants/portal/tasks/${id}`, { method: 'DELETE', body: JSON.stringify({ merchantId }) }),
+  getShippingLabel: (id, merchantId) => {
+    const query = merchantId ? `?merchantId=${merchantId}` : '';
+    return apiClient(`/merchants/portal/tasks/${id}/label${query}`);
+  }
+};
+
