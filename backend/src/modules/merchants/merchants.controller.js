@@ -169,8 +169,8 @@ export const merchantsController = {
 
       if (updates.password && updates.password.length >= 6) {
         updates.passwordHash = await bcrypt.hash(updates.password, 10);
-        delete updates.password;
       }
+      delete updates.password;
 
       const merchant = await Merchant.findByIdAndUpdate(req.params.id, updates, {
         new: true,

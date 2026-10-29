@@ -21,8 +21,12 @@ export const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/');
+      const loggedUser = await login(email, password);
+      if (loggedUser?.role === 'merchant') {
+        navigate('/merchant-portal');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Invalid email or password');
     } finally {

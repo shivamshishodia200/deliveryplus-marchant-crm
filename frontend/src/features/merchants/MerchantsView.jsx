@@ -235,20 +235,11 @@ export const MerchantsView = () => {
           </button>
 
           <button
-            onClick={() => navigate('/merchant-portal')}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 shadow-sm"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-            <span>Merchant Portal</span>
-            <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
-          </button>
-
-          <button
             onClick={() => {
               setSelectedMerchant(null);
               setIsNewModalOpen(true);
             }}
-            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-colors"
+            className="px-3.5 py-1.5 rounded-lg bg-brand-teal hover:bg-brand-teal-hover text-white text-xs font-bold flex items-center gap-1 shadow-sm transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>+ Add Merchant</span>

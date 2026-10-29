@@ -26,8 +26,8 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, ENV.JWT_SECRET);
 
     // Support Merchant Portal Tenant Login
-    if (decoded.role === 'MERCHANT' || decoded.merchantId) {
-      const merchant = await Merchant.findById(decoded.merchantId);
+    if (decoded.role === 'MERCHANT' || decoded.role === 'merchant' || decoded.merchantId) {
+      const merchant = await Merchant.findById(decoded.merchantId || decoded.id);
       if (!merchant || merchant.status !== 'Active') {
         return res.status(401).json({
           success: false,
@@ -38,7 +38,15 @@ export const protect = async (req, res, next) => {
         });
       }
       req.merchant = merchant;
-      req.user = { _id: merchant._id, name: merchant.merchantName, role: 'merchant' };
+      req.user = {
+        _id: merchant._id,
+        name: merchant.merchantName,
+        email: merchant.loginEmail,
+        role: 'merchant',
+        permissions: merchant.permissions,
+        storeDetails: merchant.storeDetails,
+        linkToTeam: merchant.linkToTeam
+      };
       return next();
     }
 

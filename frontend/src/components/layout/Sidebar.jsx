@@ -28,6 +28,8 @@ export const Sidebar = ({ isOpen, onClose }) => {
     navigate('/login');
   };
 
+  const isMerchant = user?.role === 'merchant';
+
   const navItems = [
     { label: 'Dashboard', to: '/', icon: LayoutDashboard },
     { label: 'Tasks', to: '/tasks', icon: CheckSquare, badge: 'Active' },
@@ -42,6 +44,18 @@ export const Sidebar = ({ isOpen, onClose }) => {
     { label: 'Extensions', to: '/quotations', icon: Sliders },
     { label: 'Settings', to: '/settings', icon: Settings }
   ];
+
+  const merchantNavItems = [
+    { label: 'Merchant Orders & Tasks', to: '/merchant-portal', icon: Package, badge: 'Portal' },
+    { label: 'Account Settings', to: '/settings', icon: Settings }
+  ];
+
+  const itemsToRender = isMerchant
+    ? merchantNavItems
+    : navItems.filter((item) => {
+        if (!item.roles) return true;
+        return item.roles.includes(user?.role);
+      });
 
   return (
     <>
@@ -73,7 +87,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
         {/* Navigation Items (Matching Screenshot) */}
         <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {itemsToRender.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -111,10 +125,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
               </div>
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs font-semibold text-white truncate">
-                  {user?.name || 'Administrator'}
+                  {user?.name || 'User'}
                 </span>
                 <span className="text-[10px] text-teal-400 font-medium tracking-wide uppercase">
-                  {user?.role || 'Dispatcher'}
+                  {isMerchant ? 'Merchant Partner' : (user?.role || 'Staff')}
                 </span>
               </div>
             </div>

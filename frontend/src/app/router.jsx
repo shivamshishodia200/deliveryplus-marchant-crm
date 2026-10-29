@@ -38,6 +38,9 @@ const ProtectedRoute = ({ children, roles }) => {
   }
 
   if (roles && !roles.includes(user?.role)) {
+    if (user?.role === 'merchant') {
+      return <Navigate to="/merchant-portal" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 
@@ -45,12 +48,25 @@ const ProtectedRoute = ({ children, roles }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) return null;
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated) {
+    if (user?.role === 'merchant') {
+      return <Navigate to="/merchant-portal" replace />;
+    }
+    return <Navigate to="/" replace />;
+  }
 
   return children;
+};
+
+const DashboardIndex = () => {
+  const { user } = useAuth();
+  if (user?.role === 'merchant') {
+    return <Navigate to="/merchant-portal" replace />;
+  }
+  return <Dashboard />;
 };
 
 export const router = createBrowserRouter([
@@ -70,7 +86,7 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <DashboardIndex /> },
       { path: 'leads', element: <LeadsList /> },
       { path: 'contacts', element: <ContactsList /> },
       { path: 'companies', element: <CompaniesList /> },
