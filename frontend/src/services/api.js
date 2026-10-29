@@ -8,25 +8,43 @@ export const apiClient = async (endpoint, options = {}) => {
     ...options.headers
   };
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-    credentials: 'omit' // We manage token explicitly in localStorage and headers
-  });
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: 'omit' // We manage token explicitly in localStorage and headers
+    });
 
-  if (response.status === 204) return null;
+    if (response.status === 204) return null;
 
-  const data = await response.json();
+    let data;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { error: { message: response.status >= 500 ? 'Backend server is reconnecting. Please retry.' : text } };
+      }
+    }
 
-  if (!response.ok) {
-    const errorMsg = data.error?.message || 'Request failed';
-    const err = new Error(errorMsg);
-    err.code = data.error?.code || 'API_ERROR';
-    err.details = data.error?.details;
+    if (!response.ok) {
+      const errorMsg = data?.error?.message || `Request failed with status ${response.status}`;
+      const err = new Error(errorMsg);
+      err.code = data?.error?.code || 'API_ERROR';
+      err.details = data?.error?.details;
+      throw err;
+    }
+
+    return data;
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      throw new Error('Cannot connect to server. Please ensure the backend is running on port 5001.');
+    }
     throw err;
   }
-
-  return data;
 };
 
 // Auth Services
