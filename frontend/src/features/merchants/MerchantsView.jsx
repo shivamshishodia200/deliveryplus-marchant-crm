@@ -16,139 +16,7 @@ import {
 } from 'lucide-react';
 import { merchantsApi } from '../../services/api';
 import { NewMerchantModal } from './NewMerchantModal';
-
-const INITIAL_FALLBACK_MERCHANTS = [
-  {
-    _id: 'm-1',
-    merchantName: 'Bazaa Furniture',
-    storeDetails: {
-      contactName: 'Henry',
-      phone: '0468866289',
-      contactEmail: 'Delivery@bazaa.com.au',
-      address: ''
-    },
-    loginEmail: 'Delivery@bazaa.com.au',
-    linkToTeam: 'All Teams',
-    status: 'Active'
-  },
-  {
-    _id: 'm-2',
-    merchantName: 'Berkowitz Furniture',
-    storeDetails: {
-      contactName: 'Merri',
-      phone: '+61 412 860 357',
-      contactEmail: 'Delivery@berkowitz.com',
-      address: '79 Rushdale Street, Knoxfield VIC 3180'
-    },
-    loginEmail: 'Delivery@berkowitz.com',
-    linkToTeam: 'All Teams',
-    status: 'Active'
-  },
-  {
-    _id: 'm-3',
-    merchantName: 'craft media hub',
-    storeDetails: {
-      contactName: 'Raj',
-      phone: '8767876524',
-      contactEmail: 'seo.craftmediahub@gmail.com',
-      address: '8 Cactus Lane, Campbellfield VIC 3061'
-    },
-    loginEmail: 'seo.craftmediahub@gmail.com',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-4',
-    merchantName: 'Delivery Plus',
-    storeDetails: {
-      contactName: 'Arjun',
-      phone: '0410002782',
-      contactEmail: 'info@deliveryplus.com.au',
-      address: '8 Cactus Lane, Campbellfield VIC 3061'
-    },
-    loginEmail: 'info@deliveryplus.com.au',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-5',
-    merchantName: 'Fenton&Fenton',
-    storeDetails: {
-      contactName: 'John felise',
-      phone: '0447432079',
-      contactEmail: 'johnfelise@fentonandfenton.com.au',
-      address: '6-8 Eskay Road, Oakleigh South VIC 3167'
-    },
-    loginEmail: 'johnfelise@fentonandfenton.com.au',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-6',
-    merchantName: 'Fenton&Fenton ( Test Account )',
-    storeDetails: {
-      contactName: 'John felise',
-      phone: '+61 447 432 079',
-      contactEmail: 'Fenton@fenton.com',
-      address: '8 Cactus Lane, Campbellfield VIC 3061'
-    },
-    loginEmail: 'Fenton@fenton.com',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-7',
-    merchantName: 'Satara',
-    storeDetails: {
-      contactName: 'Jordan',
-      phone: '(03) 9587 4469',
-      contactEmail: 'jorden@satara.com.au',
-      address: '13 Cochranes Road, Moorabbin VIC 3189'
-    },
-    loginEmail: 'jorden@satara.com.au',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-8',
-    merchantName: 'Sofa & Soul',
-    storeDetails: {
-      contactName: 'Anna',
-      phone: '0394278555',
-      contactEmail: 'delivery@sofasoul.com.au',
-      address: '614 Church St, Richmond VIC 3121'
-    },
-    loginEmail: 'delivery@sofasoul.com.au',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-9',
-    merchantName: 'Sofas Direct',
-    storeDetails: {
-      contactName: 'Jen',
-      phone: '0483300321',
-      contactEmail: 'Delivery@sofasdirect.com',
-      address: '283 Burwood Road, Hawthorn VIC 3122'
-    },
-    loginEmail: 'Delivery@sofasdirect.com',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  },
-  {
-    _id: 'm-10',
-    merchantName: 'Urban Rhythm',
-    storeDetails: {
-      contactName: 'Jen',
-      phone: '0483300321',
-      contactEmail: 'Delivery@urbanrhythm.com',
-      address: '544 Church St, Richmond VIC 3121'
-    },
-    loginEmail: 'Delivery@urbanrhythm.com',
-    linkToTeam: 'Merchants',
-    status: 'Active'
-  }
-];
+import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 
 export const MerchantsView = () => {
   const navigate = useNavigate();
@@ -181,7 +49,7 @@ export const MerchantsView = () => {
     }
   });
 
-  const merchants = (data?.data && data.data.length > 0) ? data.data : INITIAL_FALLBACK_MERCHANTS;
+  const merchants = data?.data || [];
 
   const filteredMerchants = merchants.filter((m) => {
     if (!search) return true;
@@ -334,10 +202,16 @@ export const MerchantsView = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredMerchants.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-8">
+                    <LoadingSkeleton count={4} className="h-10 mb-2" />
+                  </td>
+                </tr>
+              ) : filteredMerchants.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
-                    No merchants found matching search criteria.
+                    No merchants found in database. Click "+ Add Merchant" to register your first partner.
                   </td>
                 </tr>
               ) : (
